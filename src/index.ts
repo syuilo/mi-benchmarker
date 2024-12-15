@@ -9,7 +9,8 @@ import Bot from './bot.js';
 import config from './config.js';
 import log from './utils/log.js';
 
-const NUMBER_OF_BOTS = 100;
+const NUMBER_OF_BOTS = 500;
+const NUNBER_OF_FOLLOWS_PER_BOT = 100;
 
 log('welcome to mi-fake-bots');
 
@@ -41,10 +42,7 @@ promiseRetry(retry => {
 		log(chalk.green('Accounts created successfully'));
 		log(accounts.map(account => `${account.token}`).join(' '));
 
-		for (const account of accounts) {
-			const bot = new Bot(account);
-			bot.run();
-		}
+		initBots(accounts);
 	}).catch(e => {
 		log(chalk.red(e));
 	});
@@ -62,4 +60,37 @@ function makeAccount() {
 			password: 'password',
 		}
 	}).json();
+}
+
+async function initBots(accounts) {
+	async function initBot(account) {
+		log(`Initializing bot: ${account.username}`);
+
+		const bot = new Bot(account);
+
+		const nonFollowingAccounts = accounts.filter(x => x.id !== account.id);
+		const following = [];
+
+		for (let i = 0; i < NUNBER_OF_FOLLOWS_PER_BOT; i++) {
+			const target = nonFollowingAccounts[Math.floor(Math.random() * nonFollowingAccounts.length)];
+			following.push(target);
+			nonFollowingAccounts.splice(nonFollowingAccounts.indexOf(target), 1);
+		}
+
+		await Promise.all(following.map((f) => {
+			return bot.api('following/create', {
+				userId: f.id
+			});
+		}));
+
+		log(`Bot initialized: ${account.username}`);
+
+		return bot;
+	}
+
+	const bots = await Promise.all(accounts.map(x => initBot(x)));
+
+	for (const bot of bots) {
+		bot.run();
+	}
 }
