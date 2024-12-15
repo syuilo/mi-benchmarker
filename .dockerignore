@@ -1,0 +1,11 @@
+config.json
+*.md
+*.png
+Dockerfile
+docker-compose.yml
+LICENSE
+
+node_modules/
+test/
+data/
+.vscode/
