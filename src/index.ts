@@ -11,6 +11,8 @@ import https from 'node:https';
 import Bot from './bot.js';
 import config from './config.js';
 import log from './utils/log.js';
+import {arrayChunk} from "@/utils/chunk.js";
+import {User} from "@/misskey/user.js";
 
 const NUMBER_OF_BOTS = 500;
 const NUNBER_OF_FOLLOWS_PER_BOT = 100;
@@ -83,10 +85,10 @@ async function initBots(accounts) {
 	async function initBot(account) {
 		log(`Initializing bot: ${account.username}`);
 
-		const bot = new Bot(account);
+		const bot = new Bot(account as unknown as User);
 
 		const nonFollowingAccounts = accounts.filter(x => x.id !== account.id);
-		const following = [];
+		const following: any[] = [];
 
 		for (let i = 0; i < NUNBER_OF_FOLLOWS_PER_BOT; i++) {
 			const target = nonFollowingAccounts[Math.floor(Math.random() * nonFollowingAccounts.length)];
@@ -94,18 +96,32 @@ async function initBots(accounts) {
 			nonFollowingAccounts.splice(nonFollowingAccounts.indexOf(target), 1);
 		}
 
-		await Promise.all(following.map((f) => {
-			return bot.api('following/create', {
-				userId: f.id
-			});
-		}));
+		const followingFunctions = following.filter(it => it).map((f) => {
+			return () => {
+				return bot.api('following/create', {
+					userId: f.id
+				}).catch(e => {
+					const body = JSON.parse(e.response.body);
+					if (body.error.code !== 'ALREADY_FOLLOWING') {
+						throw e;
+					}
+				});
+			};
+		})
+
+		for (const chunk of arrayChunk(followingFunctions, 10)) {
+			await Promise.all(chunk.map(f => f()));
+		}
 
 		log(`Bot initialized: ${account.username}`);
 
 		return bot;
 	}
 
-	const bots = await Promise.all(accounts.map(x => initBot(x)));
+	const bots: any[] = [];
+	for (const account of accounts) {
+		bots.push(await initBot(account));
+	}
 
 	for (const bot of bots) {
 		bot.run();
