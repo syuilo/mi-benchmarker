@@ -4,6 +4,11 @@ type Config = {
 	wsUrl: string;
 	apiUrl: string;
 	memoryDir?: string;
+	accounts?: {
+		id: string;
+		username: string;
+		token: string;
+	}[];
 };
 
 import config from '../config.json' with { type: 'json' };

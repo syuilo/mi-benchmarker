@@ -1,9 +1,12 @@
 // AiOS bootstrapper
 
 import process from 'node:process';
+import fs from 'node:fs';
 import chalk from 'chalk';
 import got from 'got';
 import promiseRetry from 'promise-retry';
+import http from 'node:http';
+import https from 'node:https';
 
 import Bot from './bot.js';
 import config from './config.js';
@@ -22,7 +25,7 @@ process.on('uncaughtException', err => {
 });
 
 promiseRetry(retry => {
-	log(`Account fetching... ${chalk.gray(config.host)}`);
+	log(`Admin account fetching... ${chalk.gray(config.host)}`);
 
 	// アカウントをフェッチ
 	return got.post(`${config.apiUrl}/i`, {
@@ -36,18 +39,28 @@ promiseRetry(retry => {
 	const acct = `@${account.username}`;
 	log(chalk.green(`Account fetched successfully: ${chalk.underline(acct)}`));
 
-	const makeAccountPromises = Array.from(Array(NUMBER_OF_BOTS)).map(() => makeAccount());
+	if (config.accounts && config.accounts.length > 0) {
+		initBots(config.accounts);
+	} else {
+		const makeAccountPromises = Array.from(Array(NUMBER_OF_BOTS)).map(() => makeAccount());
 
-	Promise.all(makeAccountPromises).then(accounts => {
-		log(chalk.green('Accounts created successfully'));
-		log(accounts.map(account => `${account.token}`).join(' '));
+		Promise.all(makeAccountPromises).then(accounts => {
+			log(chalk.green('Accounts created successfully'));
+			log(accounts.map(account => `${account.token}`).join(' '));
 
-		initBots(accounts);
-	}).catch(e => {
-		log(chalk.red(e));
-	});
+			fs.writeFileSync('_accounts_.json', JSON.stringify(accounts.map(account => ({
+				id: account.id,
+				username: account.username,
+				token: account.token
+			})), null, 0), 'utf8');
+
+			initBots(accounts);
+		}).catch(e => {
+			log(chalk.red(e));
+		});
+	}
 }).catch(e => {
-	log(chalk.red('Failed to fetch the account'));
+	log(chalk.red('Failed to fetch the admin account'));
 });
 
 function makeAccount() {
@@ -58,6 +71,10 @@ function makeAccount() {
 			i: config.i,
 			username: 'fake_' + Array.from(Array(12)).map(()=>chars[Math.floor(Math.random()*chars.length)]).join(''),
 			password: 'password',
+		},
+		agent: {
+			http: new http.Agent({ keepAlive: true }),
+			https: new https.Agent({ keepAlive: true })
 		}
 	}).json();
 }

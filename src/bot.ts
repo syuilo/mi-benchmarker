@@ -5,6 +5,8 @@ import got from 'got';
 import { FormData, File } from 'formdata-node';
 import chalk from 'chalk';
 import { v4 as uuid } from 'uuid';
+import http from 'node:http';
+import https from 'node:https';
 
 import config from '@/config.js';
 import type { User } from '@/misskey/user.js';
@@ -82,7 +84,11 @@ export default class Bot {
 		return got.post(`${config.apiUrl}/${endpoint}`, {
 			json: Object.assign({
 				i: this.account.token,
-			}, param)
+			}, param),
+			agent: {
+				http: new http.Agent({ keepAlive: true }),
+				https: new https.Agent({ keepAlive: true })
+			}
 		}).json();
 	};
 }
