@@ -63,7 +63,26 @@ export default class Bot {
 			setTimeout(readRandom, Math.random() * 1000 * 60);
 		}
 
-		readRandom();
+		setTimeout(readRandom, Math.random() * 1000 * 60);
+
+		const reactRandom = async () => {
+			const tl = await this.api('notes/hybrid-timeline', {
+				limit: 10,
+			});
+
+			const note = tl[0];
+
+			if (note) {
+				this.api('notes/reactions/create', {
+					noteId: note.id,
+					reaction: '👍',
+				});
+			}
+
+			setTimeout(reactRandom, Math.random() * 1000 * 60);
+		}
+
+		setTimeout(reactRandom, Math.random() * 1000 * 60);
 	}
 
 	/**
