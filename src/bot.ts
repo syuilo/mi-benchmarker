@@ -35,7 +35,18 @@ export default class Bot {
 		//#region Main stream
 		const mainStream = this.connection.useSharedConnection('main');
 
-		this.connection.connectToChannel('hybridTimeline');
+		const ch = this.connection.connectToChannel('hybridTimeline');
+
+		ch.on('note', (note) => {
+			if (Math.random() < 0.1) {
+				setTimeout(() => {
+					this.api('notes/reactions/create', {
+						noteId: note.id,
+						reaction: '👍',
+					});
+				}, Math.random() * 1000 * 10);
+			}
+		});
 
 		this.log(chalk.green.bold('now running'));
 
@@ -64,25 +75,6 @@ export default class Bot {
 		}
 
 		setTimeout(readRandom, Math.random() * 1000 * 60);
-
-		const reactRandom = async () => {
-			const tl = await this.api('notes/hybrid-timeline', {
-				limit: 10,
-			});
-
-			const note = tl[0];
-
-			if (note) {
-				this.api('notes/reactions/create', {
-					noteId: note.id,
-					reaction: '👍',
-				});
-			}
-
-			setTimeout(reactRandom, Math.random() * 1000 * 60);
-		}
-
-		setTimeout(reactRandom, Math.random() * 1000 * 60);
 	}
 
 	/**
