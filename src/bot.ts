@@ -1,12 +1,12 @@
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import { bindThis } from '@/decorators.js';
 import loki from 'lokijs';
-import got from 'got';
 import { FormData, File } from 'formdata-node';
 import chalk from 'chalk';
 import { v4 as uuid } from 'uuid';
 import http from 'node:http';
 import https from 'node:https';
+import got from 'got';
 
 import config from '@/config.js';
 import type { User } from '@/misskey/user.js';
@@ -25,7 +25,7 @@ export default class Bot {
 
 	@bindThis
 	public log(msg: string) {
-		log(`[${chalk.magenta('Bot')}]: ${msg}`);
+		log(`[${chalk.magenta('Bot')} @${this.account.username}]: ${msg}`);
 	}
 
 	@bindThis
@@ -44,10 +44,26 @@ export default class Bot {
 				text: `Hello, world! ${uuid()}`,
 			});
 
-			setTimeout(postRandom, Math.random() * 1000 * 60);
+			setTimeout(postRandom, Math.random() * 1000 * 60 * 3);
 		}
 
-		postRandom();
+		setTimeout(postRandom, Math.random() * 1000 * 60 * 3);
+
+		const readRandom = () => {
+			if (Math.random() < 0.5) {
+				this.api('notes/hybrid-timeline', {
+					limit: 10,
+				});
+			} else {
+				this.api('notes/timeline', {
+					limit: 10,
+				});
+			}
+
+			setTimeout(readRandom, Math.random() * 1000 * 60);
+		}
+
+		readRandom();
 	}
 
 	/**
@@ -80,15 +96,54 @@ export default class Bot {
 	 */
 	@bindThis
 	public api(endpoint: string, param?: any) {
-		//this.log(`API: ${endpoint}`);
-		return got.post(`${config.apiUrl}/${endpoint}`, {
+		const before = performance.now();
+
+		const req = got.post(`${config.apiUrl}/${endpoint}`, {
 			json: Object.assign({
 				i: this.account.token,
 			}, param),
-			agent: {
-				http: new http.Agent({ keepAlive: true }),
-				https: new https.Agent({ keepAlive: true })
-			}
 		}).json();
-	};
+
+		req.then((res) => {
+			this.log(`API: ${endpoint} ${chalk.gray('(' + Math.round(performance.now() - before) + 'ms)')}`);
+		});
+
+		return req;
+	}
+
+		/**
+	 * APIを呼び出します
+	 */
+		@bindThis
+		public apiNode(endpoint: string, param?: any) {
+			this.log(`API: ${endpoint}`);
+			return new Promise((resolve, reject) => {
+				const req = http.request(`${config.apiUrl}/${endpoint}`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+				}, (res) => {
+					res.setEncoding('utf8');
+					let data = '';
+					res.on('data', (chunk) => {
+						data += chunk;
+					});
+					res.on('end', () => {
+						resolve(JSON.parse(data));
+					});
+				});
+	
+				req.on('error', (e) => {
+					console.error(`problem with request: ${e.message}`);
+					reject(e);
+				});
+	
+				req.write(JSON.stringify(Object.assign({
+					i: this.account.token,
+				}, param)));
+	
+				req.end();
+			});
+		}
 }
